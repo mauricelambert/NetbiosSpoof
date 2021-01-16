@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: NetbiosSpoof
-Version: 0.0.2
+Version: 0.0.3
 Summary: This package implement a Hostname Spoofer (Netbios, LLMNR, DNS Local).
 Home-page: https://github.com/mauricelambert/NetbiosSpoof
 Author: Maurice Lambert
@@ -36,7 +36,7 @@ Description: # NetbiosSpoof
         ```
         
         ## Link
-        [Github Page](https://github.com/mauricelambert/ArpSpoof)
+        [Github Page](https://github.com/mauricelambert/NetbiosSpoof)
         
         ## Licence
         Licensed under the [GPL, version 3](https://www.gnu.org/licenses/).

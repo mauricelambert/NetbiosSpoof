@@ -28,7 +28,7 @@ NetbiosSpoof().launch()
 ```
 
 ## Link
-[Github Page](https://github.com/mauricelambert/ArpSpoof)
+[Github Page](https://github.com/mauricelambert/NetbiosSpoof)
 
 ## Licence
 Licensed under the [GPL, version 3](https://www.gnu.org/licenses/).
