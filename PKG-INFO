@@ -1,51 +1,99 @@
 Metadata-Version: 2.1
 Name: NetbiosSpoof
-Version: 0.0.3
-Summary: This package implement a Hostname Spoofer (Netbios, LLMNR, DNS Local).
+Version: 1.0.0
+Summary: This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
 Home-page: https://github.com/mauricelambert/NetbiosSpoof
 Author: Maurice Lambert
 Author-email: mauricelambert434@gmail.com
-License: UNKNOWN
-Description: # NetbiosSpoof
-        
-        ## Description
-        This package implement a Netbios Spoofer (Netbios, LLMNR, DNS Local).
-        
-        ## Requirements
-        This package require :
-         - python3
-         - python3 Standard Library
-         - Scapy
-        
-        ## Installation
-        ```bash
-        pip install NetbiosSpoof
-        ```
-        
-        ## Examples
-        
-        ### Command lines
-        ```bash
-        NetbiosSpoof
-        ```
-        
-        ### Python3
-        ```python
-        from NetbiosSpoof import NetbiosSpoof
-        NetbiosSpoof().launch()
-        ```
-        
-        ## Link
-        [Github Page](https://github.com/mauricelambert/NetbiosSpoof)
-        
-        ## Licence
-        Licensed under the [GPL, version 3](https://www.gnu.org/licenses/).
-Platform: UNKNOWN
+Maintainer: Maurice Lambert
+Maintainer-email: mauricelambert434@gmail.com
+License: GPL-3.0 License
+Project-URL: Documentation, https://mauricelambert.github.io/info/python/security/NetbiosSpoof.html
+Project-URL: Executable, https://mauricelambert.github.io/info/python/security/NetbiosSpoof.pyz
+Keywords: netbios,spoofer,hostname,network,security,NBNS,LLMNR,MDNS,Local DNS
+Platform: Windows
+Platform: Linux
+Platform: MacOS
 Classifier: Programming Language :: Python
 Classifier: Development Status :: 5 - Production/Stable
-Classifier: Environment :: Console
+Classifier: Topic :: System :: Networking
+Classifier: Topic :: Security
 Classifier: Natural Language :: English
-Classifier: Operating System :: OS Independent
-Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: MacOS
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+
+![NetbiosSpoof logo](https://mauricelambert.github.io/info/python/security/NetbiosSpoof_small.png "NetbiosSpoof logo")
+
+# NetbiosSpoof
+
+## Description
+
+This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
+
+## Requirements
+
+This package require :
+ - python3
+ - python3 Standard Library
+ - Scapy
+
+## Installation
+
+```bash
+pip install NetbiosSpoof
+```
+
+## Usages
+
+### Command lines
+
+```bash
+python3 -m NetbiosSpoof
+python3 NetbiosSpoof.pyz
+NetbiosSpoof
+NetbiosSpoof --help
+NetbiosSpoof -h
+NetbiosSpoof -v -i 172.17.0.
+```
+
+### Python3
+
+```python
+from NetbiosSpoof import NetbiosSpoof
+NetbiosSpoof().start()
+
+spoofer = NetbiosSpoof("172.17.0.")
+spoofer.start(True)
+spoofer.stop()
+```
+
+## Links
+
+ - [Github Page](https://github.com/mauricelambert/NetbiosSpoof)
+ - [Pypi](https://pypi.org/project/NetbiosSpoof/)
+ - [Documentation](https://mauricelambert.github.io/info/python/security/NetbiosSpoof.html)
+ - [Executable](https://mauricelambert.github.io/info/python/security/NetbiosSpoof.pyz)
+
+## Help
+
+```text
+usage: NetbiosSpoof.pyz [-h] [--iface IFACE] [--verbose]
+
+This script spoofs host names on a network.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --iface IFACE, -i IFACE
+                        Part of the IP, MAC or name of the interface
+  --verbose, -v         Mode verbose (print debug message)
+```
+
+## Licence
+
+Licensed under the [GPL, version 3](https://www.gnu.org/licenses/).
+
