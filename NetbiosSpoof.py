@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 ###################
@@ -28,19 +28,19 @@ This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
 >>> spoofer = NetbiosSpoof("172.17.0.")
 
 ~# python3 NetbiosSpoof.py
-[22/06/2022 06:19:21 AM] WARNING  The netbios spoofer starts up...
-[22/06/2022 06:19:32 AM] CRITICAL The netbios spoofer is stopped.
+[22/06/2022 06:19:32] WARNING  (30) {__main__ - NetbiosSpoof.py:451} The netbios spoofer starts up...
+[22/06/2022 06:19:32] CRITICAL (50) {__main__ - NetbiosSpoof.py:470} The netbios spoofer is stopped.
 ~# python3 NetbiosSpoof.py -v -i 172.17.0.
-[22/06/2022 06:19:21 AM] DEBUG    Logging is configured.
-[22/06/2022 06:19:21 AM] DEBUG    Start network interface detection...
-[22/06/2022 06:19:21 AM] INFO     Interface argument match with (172.17.0.2 89:3c:10:40:61:b1 WIFI)
-[22/06/2022 06:19:21 AM] DEBUG    Use network interface WIFI
-[22/06/2022 06:19:21 AM] WARNING  The netbios spoofer starts up...
-[22/06/2022 06:19:24 AM] INFO     Protocol DNS, spoof b'kali.local.' for 172.17.0.3
-[22/06/2022 06:19:32 AM] CRITICAL The netbios spoofer is stopped.
+[22/06/2022 06:19:32] DEBUG    (10) {__main__ - NetbiosSpoof.py:497} Logging is configured.
+[22/06/2022 06:19:32] DEBUG    (10) {__main__ - NetbiosSpoof.py:141} Start network interface detection...
+[22/06/2022 06:19:32] INFO     (20) {__main__ - NetbiosSpoof.py:150} Interface argument match with (172.17.0.2 89:3c:10:40:61:b1 WIFI)
+[22/06/2022 06:19:32] DEBUG    (10) {__main__ - NetbiosSpoof.py:157} Use network interface WIFI
+[22/06/2022 06:19:32] WARNING  (30) {__main__ - NetbiosSpoof.py:451} The netbios spoofer starts up...
+[22/06/2022 06:19:32] INFO     (20) {__main__ - NetbiosSpoof.py:430} Protocol DNS, spoof b'kali.local.' for 172.17.0.3
+[22/06/2022 06:19:32] CRITICAL (50) {__main__ - NetbiosSpoof.py:470} The netbios spoofer is stopped.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "Maurice Lambert"
 __author_email__ = "mauricelambert434@gmail.com"
 __maintainer__ = "Maurice Lambert"
@@ -80,11 +80,38 @@ from scapy.all import (
     AsyncSniffer,
     conf,
 )
+from logging import StreamHandler, Formatter, Logger
 from argparse import ArgumentParser
 from ipaddress import ip_interface
 import scapy.interfaces
 import logging
 import sys
+
+global logger
+logger: Logger = None
+
+
+def get_custom_logger() -> Logger:
+
+    """
+    This function create a custom logger.
+    """
+
+    logger = logging.getLogger(__name__)  # default logger.level == 0
+
+    formatter = Formatter(
+        fmt=(
+            "%(asctime)s%(levelname)-9s(%(levelno)s) "
+            "{%(name)s - %(filename)s:%(lineno)d} %(message)s"
+        ),
+        datefmt="[%Y-%m-%d %H:%M:%S] ",
+    )
+    stream = StreamHandler(stream=sys.stdout)
+    stream.setFormatter(formatter)
+
+    logger.addHandler(stream)
+
+    return logger
 
 
 class NetbiosSpoof:
@@ -113,7 +140,7 @@ class NetbiosSpoof:
         """
 
         self.iface = conf.iface
-        logging.debug("Start network interface detection...")
+        logger.debug("Start network interface detection...")
 
         if self.string_iface is not None:
             for iface_ in IFACES.values():
@@ -122,14 +149,14 @@ class NetbiosSpoof:
                     or self.string_iface in iface_.mac
                     or self.string_iface in iface_.network_name
                 ):
-                    logging.info(
+                    logger.info(
                         "Interface argument match with "
                         f"({iface_.ip} {iface_.mac} {iface_.name})"
                     )
                     self.iface = iface_
                     break
 
-        logging.debug(f"Use network interface {self.iface.name}")
+        logger.debug(f"Use network interface {self.iface.name}")
         return self.iface
 
     def craft_NBNS_response(self, packet: Packet) -> Packet:
@@ -402,7 +429,7 @@ class NetbiosSpoof:
             return None
         for response in responses:
             send(response, verbose=0, iface=self.iface)
-        logging.info(f"Protocol {style}, spoof {name} for {ip_src}")
+        logger.info(f"Protocol {style}, spoof {name} for {ip_src}")
 
     def stop(self) -> None:
 
@@ -414,7 +441,7 @@ class NetbiosSpoof:
         sniffer = getattr(self, "sniffer", None)
         if sniffer:
             sniffer.stop()
-        logging.info("Spoofer/Sniffer stops... Please wait a moment...")
+        logger.info("Spoofer/Sniffer stops... Please wait a moment...")
 
     def start(self, asynchronous: bool = False) -> None:
 
@@ -423,7 +450,7 @@ class NetbiosSpoof:
         """
 
         self.run = True
-        logging.warning("The netbios spoofer starts up...")
+        logger.warning("The netbios spoofer starts up...")
 
         if asynchronous:
             sniffer = AsyncSniffer(
@@ -431,7 +458,7 @@ class NetbiosSpoof:
                 filter="(port 5353 or port 5355 or port 137) and proto UDP",
                 stop_filter=lambda x: not self.run,
                 prn=self.identify_packet,
-                iface=self.iface
+                iface=self.iface,
             )
             sniffer.start()
         else:
@@ -440,9 +467,9 @@ class NetbiosSpoof:
                 filter="(port 5353 or port 5355 or port 137) and proto UDP",
                 stop_filter=lambda x: not self.run,
                 prn=self.identify_packet,
-                iface=self.iface
+                iface=self.iface,
             )
-            logging.critical("The netbios spoofer is stopped.")
+            logger.critical("The netbios spoofer is stopped.")
 
 
 def main() -> None:
@@ -451,9 +478,12 @@ def main() -> None:
     This function starts the netbios spoofer from the command line.
     """
 
+    global logger
     print(copyright)
 
-    parser = ArgumentParser(description="This script spoofs host names on a network.")
+    parser = ArgumentParser(
+        description="This script spoofs host names on a network."
+    )
     parser.add_argument(
         "--iface", "-i", help="Part of the IP, MAC or name of the interface"
     )
@@ -465,20 +495,17 @@ def main() -> None:
     )
     arguments = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.DEBUG if arguments.verbose else logging.WARNING,
-        format="%(asctime)s%(levelname)-9s%(message)s",
-        datefmt="[%m/%d/%Y %I:%M:%S %p] ",
-    )
+    logger = get_custom_logger()
+    logger.level = logging.DEBUG if arguments.verbose else logging.WARNING
 
-    logging.debug("Logging is configured.")
+    logger.debug("Logging is configured.")
 
     spoofer = NetbiosSpoof(arguments.iface)
 
     try:
         spoofer.start()
     except KeyboardInterrupt:
-        logging.critical("The netbios spoofer is stopped.")
+        logger.critical("The netbios spoofer is stopped.")
 
 
 if __name__ == "__main__":
