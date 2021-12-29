@@ -40,7 +40,7 @@ This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
 [22/06/2022 06:19:32] CRITICAL (50) {__main__ - NetbiosSpoof.py:470} The netbios spoofer is stopped.
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __author__ = "Maurice Lambert"
 __author_email__ = "mauricelambert434@gmail.com"
 __maintainer__ = "Maurice Lambert"
@@ -86,9 +86,6 @@ from ipaddress import ip_interface
 import scapy.interfaces
 import logging
 import sys
-
-global logger
-logger: Logger = None
 
 
 def get_custom_logger() -> Logger:
@@ -478,9 +475,6 @@ def main() -> None:
     This function starts the netbios spoofer from the command line.
     """
 
-    global logger
-    print(copyright)
-
     parser = ArgumentParser(
         description="This script spoofs host names on a network."
     )
@@ -495,8 +489,7 @@ def main() -> None:
     )
     arguments = parser.parse_args()
 
-    logger = get_custom_logger()
-    logger.level = logging.DEBUG if arguments.verbose else logging.WARNING
+    logger.setLevel(logging.DEBUG if arguments.verbose else logging.WARNING)
 
     logger.debug("Logging is configured.")
 
@@ -507,6 +500,9 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.critical("The netbios spoofer is stopped.")
 
+
+logger: Logger = get_custom_logger()
+print(copyright)
 
 if __name__ == "__main__":
     main()
