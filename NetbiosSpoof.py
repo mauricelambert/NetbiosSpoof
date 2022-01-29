@@ -22,10 +22,11 @@
 """
 This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
 
+>>> from scapy.all import conf
 >>> spoofer = NetbiosSpoof()
 >>> spoofer.start(True)
 >>> spoofer.stop()
->>> spoofer = NetbiosSpoof("172.17.0.")
+>>> spoofer = NetbiosSpoof(conf.iface)
 
 ~# python3 NetbiosSpoof.py
 [22/06/2022 06:19:32] WARNING  (30) {__main__ - NetbiosSpoof.py:451} The netbios spoofer starts up...
@@ -40,7 +41,7 @@ This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
 [22/06/2022 06:19:32] CRITICAL (50) {__main__ - NetbiosSpoof.py:470} The netbios spoofer is stopped.
 """
 
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 __author__ = "Maurice Lambert"
 __author_email__ = "mauricelambert434@gmail.com"
 __maintainer__ = "Maurice Lambert"
@@ -80,12 +81,85 @@ from scapy.all import (
     AsyncSniffer,
     conf,
 )
-from logging import StreamHandler, Formatter, Logger
-from argparse import ArgumentParser
+from logging import StreamHandler, Formatter, Logger, getLogger, DEBUG, WARNING
+from argparse import ArgumentParser, Namespace
+from scapy.interfaces import NetworkInterface
+from collections.abc import Callable
 from ipaddress import ip_interface
-import scapy.interfaces
-import logging
-import sys
+from sys import exit, stdout
+from typing import List
+
+conf_iface: NetworkInterface = conf.iface
+
+
+class ScapyArguments(ArgumentParser):
+
+    """
+    This class implements ArgumentsParser with
+    interface argument and iface research.
+    """
+
+    interface_args: list = ["--interface", "-i"]
+    interface_kwargs: dict = {
+        "help": "Part of the IP, MAC or name of the interface",
+    }
+
+    def __init__(
+        self,
+        *args,
+        interface_args=interface_args,
+        interface_kwargs=interface_kwargs,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.interface_args = interface_args
+        self.interface_kwargs = interface_kwargs
+        self.add_argument(*interface_args, **interface_kwargs)
+
+    def parse_args(
+        self, args: List[str] = None, namespace: Namespace = None
+    ) -> Namespace:
+
+        """
+        This function implements the iface
+        research from interface arguments.
+        """
+
+        namespace: Namespace = ArgumentParser.parse_args(self, args, namespace)
+
+        argument_name: str = max(self.interface_args, key=len)
+        for char in self.prefix_chars:
+            if char == argument_name[0]:
+                argument_name = argument_name.lstrip(char)
+                break
+
+        interface = getattr(namespace, argument_name, None)
+
+        if interface is not None:
+            interface = interface.casefold()
+
+            for temp_iface in IFACES.values():
+
+                ip = temp_iface.ip
+                mac = temp_iface.mac or ""
+                name = temp_iface.name or ""
+                network_name = temp_iface.network_name or ""
+
+                mac = mac.casefold()
+                name = name.casefold()
+                network_name = network_name.casefold()
+
+                if (
+                    (ip and interface in ip)
+                    or (mac and interface in mac)
+                    or (name and interface in name)
+                    or (network_name and interface in network_name)
+                ):
+                    namespace.iface = temp_iface
+                    return namespace
+
+        namespace.iface = conf_iface
+        return namespace
 
 
 def get_custom_logger() -> Logger:
@@ -94,7 +168,7 @@ def get_custom_logger() -> Logger:
     This function create a custom logger.
     """
 
-    logger = logging.getLogger(__name__)  # default logger.level == 0
+    logger = getLogger(__name__)  # default logger.level == 0
 
     formatter = Formatter(
         fmt=(
@@ -103,7 +177,7 @@ def get_custom_logger() -> Logger:
         ),
         datefmt="[%Y-%m-%d %H:%M:%S] ",
     )
-    stream = StreamHandler(stream=sys.stdout)
+    stream = StreamHandler(stream=stdout)
     stream.setFormatter(formatter)
 
     logger.addHandler(stream)
@@ -117,44 +191,23 @@ class NetbiosSpoof:
     This class implements a netbios spoofer.
     """
 
-    def __init__(self, interface: str = None):
+    def __init__(self, interface: NetworkInterface = conf_iface):
         self.multicast_v4 = "224.0.0.251"
         self.multicast_v6 = "ff02::fb"
+
         self.run = True
-        self.string_iface = interface
-        self.iface = self.get_iface()
-        self.mac = self.iface.mac
-        self.ip = self.iface.ip
-        self.raw_ip = ip_interface(self.ip).packed
-        self.ipv6 = self.iface.ips[6]
-        self.ipv6_number = len(self.ipv6)
+        self.iface = interface
+        self.mac = interface.mac
+        ip = self.ip = interface.ip
+        self.raw_ip = ip_interface(ip).packed
+        ipv6 = self.ipv6 = self.iface.ips[6]
+        self.ipv6_number = len(ipv6)
 
-    def get_iface(self) -> scapy.interfaces.NetworkInterface:
-
-        """
-        This function get a NetworkInterface from iface arguments
-        (a part of IP or MAC addresses or interface name).
-        """
-
-        self.iface = conf.iface
-        logger.debug("Start network interface detection...")
-
-        if self.string_iface is not None:
-            for iface_ in IFACES.values():
-                if (
-                    self.string_iface in iface_.ip
-                    or self.string_iface in iface_.mac
-                    or self.string_iface in iface_.network_name
-                ):
-                    logger.info(
-                        "Interface argument match with "
-                        f"({iface_.ip} {iface_.mac} {iface_.name})"
-                    )
-                    self.iface = iface_
-                    break
-
-        logger.debug(f"Use network interface {self.iface.name}")
-        return self.iface
+        logger_info(
+            "NetbiosSpoofer is created on "
+            f"{interface.ip} {interface.mac} {interface.name} "
+            f"{interface.network_name}"
+        )
 
     def craft_NBNS_response(self, packet: Packet) -> Packet:
 
@@ -295,12 +348,13 @@ class NetbiosSpoof:
         type to forge the LLMNR response.
         """
 
-        if packet.haslayer(IP):
+        haslayer = packet.haslayer
+        if haslayer(IP):
             if packet[DNSQR].qtype == 28:
                 return self.craft_LLMNR_IP_type_28(packet)
             else:
                 return self.craft_LLMNR_IP(packet)
-        elif packet.haslayer(IPv6):
+        elif haslayer(IPv6):
             if packet[DNSQR].qtype == 28:
                 return self.craft_LLMNR_IPv6_type_28(packet)
             else:
@@ -313,10 +367,11 @@ class NetbiosSpoof:
         """
 
         name = packet[DNSQR].qname
+        multicast_v4 = self.multicast_v4
 
         return (
             [
-                IP(ihl=5, proto=17, dst=self.multicast_v4)
+                IP(ihl=5, proto=17, dst=multicast_v4)
                 / UDP(sport=5353, dport=5353)
                 / DNS(
                     qr=1,
@@ -325,7 +380,7 @@ class NetbiosSpoof:
                     ancount=self.ipv6_number,
                     an=self.craft_DNSv6_response(name),
                 ),
-                IP(ihl=5, proto=17, dst=self.multicast_v4)
+                IP(ihl=5, proto=17, dst=multicast_v4)
                 / UDP(sport=5353, dport=5353)
                 / DNS(
                     qr=1,
@@ -405,9 +460,10 @@ class NetbiosSpoof:
         This function crafts the DNS response.
         """
 
-        if packet.haslayer(IP):
+        haslayer = packet.haslayer
+        if haslayer(IP):
             return self.craft_MDNS_IP(packet)
-        elif packet.haslayer(IPv6):
+        elif haslayer(IPv6):
             return self.craft_MDNS_IPv6(packet)
 
     def identify_packet(self, packet: Packet) -> None:
@@ -416,17 +472,21 @@ class NetbiosSpoof:
         This function detects the request type and send the response.
         """
 
-        if packet.haslayer(NBNSQueryRequest) and packet[IP].src != self.ip:
+        haslayer = packet.haslayer
+
+        if haslayer(NBNSQueryRequest) and packet[IP].src != self.ip:
             responses, ip_src, name, style = self.craft_NBNS_response(packet)
-        elif packet.haslayer(LLMNRQuery):
+        elif haslayer(LLMNRQuery):
             responses, ip_src, name, style = self.detect_LLMNR_type(packet)
-        elif packet.haslayer(DNS) and packet.haslayer(DNSQR):
+        elif haslayer(DNS) and haslayer(DNSQR):
             responses, ip_src, name, style = self.detect_ip_version_DNS(packet)
         else:
             return None
+
         for response in responses:
             send(response, verbose=0, iface=self.iface)
-        logger.info(f"Protocol {style}, spoof {name} for {ip_src}")
+
+        logger_info(f"Protocol {style}, spoof {name} for {ip_src}")
 
     def stop(self) -> None:
 
@@ -435,10 +495,12 @@ class NetbiosSpoof:
         """
 
         self.run = False
+
         sniffer = getattr(self, "sniffer", None)
         if sniffer:
             sniffer.stop()
-        logger.info("Spoofer/Sniffer stops... Please wait a moment...")
+
+        logger_info("Spoofer/Sniffer stops... Please wait a moment...")
 
     def start(self, asynchronous: bool = False) -> None:
 
@@ -447,7 +509,7 @@ class NetbiosSpoof:
         """
 
         self.run = True
-        logger.warning("The netbios spoofer starts up...")
+        logger_warning("The netbios spoofer starts up...")
 
         if asynchronous:
             sniffer = AsyncSniffer(
@@ -466,20 +528,17 @@ class NetbiosSpoof:
                 prn=self.identify_packet,
                 iface=self.iface,
             )
-            logger.critical("The netbios spoofer is stopped.")
+            logger_critical("The netbios spoofer is stopped.")
 
 
-def main() -> None:
+def main() -> int:
 
     """
     This function starts the netbios spoofer from the command line.
     """
 
-    parser = ArgumentParser(
+    parser = ScapyArguments(
         description="This script spoofs host names on a network."
-    )
-    parser.add_argument(
-        "--iface", "-i", help="Part of the IP, MAC or name of the interface"
     )
     parser.add_argument(
         "--verbose",
@@ -489,21 +548,28 @@ def main() -> None:
     )
     arguments = parser.parse_args()
 
-    logger.setLevel(logging.DEBUG if arguments.verbose else logging.WARNING)
+    logger.setLevel(DEBUG if arguments.verbose else WARNING)
 
-    logger.debug("Logging is configured.")
+    logger_debug("Logging is configured.")
 
     spoofer = NetbiosSpoof(arguments.iface)
 
     try:
         spoofer.start()
     except KeyboardInterrupt:
-        logger.critical("The netbios spoofer is stopped.")
+        logger_critical("The netbios spoofer is stopped.")
+
+    return 0
 
 
 logger: Logger = get_custom_logger()
+logger_debug: Callable = logger.debug
+logger_info: Callable = logger.info
+logger_warning: Callable = logger.warning
+logger_error: Callable = logger.error
+logger_critical: Callable = logger.critical
+
 print(copyright)
 
 if __name__ == "__main__":
-    main()
-    sys.exit(0)
+    exit(main())

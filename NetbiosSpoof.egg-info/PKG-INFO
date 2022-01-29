@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: NetbiosSpoof
-Version: 1.0.2
+Version: 1.1.0
 Summary: This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
 Home-page: https://github.com/mauricelambert/NetbiosSpoof
 Author: Maurice Lambert

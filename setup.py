@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="NetbiosSpoof",
-    version="1.0.2",
+    version="1.1.0",
     py_modules=["NetbiosSpoof"],
     install_requires=["scapy"],
     author="Maurice Lambert",
